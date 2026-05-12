@@ -1,10 +1,12 @@
 {
   "name": "cockpit-intel-bot",
   "version": "1.0.0",
+  "description": "智能座舱AI情报自动抓取与报告生成",
   "scripts": {
-    "fetch": "node scripts/fetch-news.js",
+    "fetch": "node scripts/fetch-news.js > data/index.html",
     "generate": "node scripts/generate-report.js",
-    "build": "node scripts/build-site.js"
+    "build": "node scripts/build-site.js",
+    "deploy": "npm run fetch && npm run generate && npm run build"
   },
   "dependencies": {}
 }
