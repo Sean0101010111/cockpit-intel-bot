@@ -32,4 +32,74 @@ function post(url, body, timeout = 10000) {
   });
 }
 
-// ============
+// ============ 飞书卡片消息 ============
+function buildFeishuPayload(markdown) {
+  return {
+    msg_type: 'interactive',
+    card: {
+      header: {
+        title: { tag: 'plain_text', content: '☀️ 每日座舱AI情报速递' },
+        template: 'blue'
+      },
+      elements: [
+        {
+          tag: 'markdown',
+          content: markdown.slice(0, 4000)
+        }
+      ]
+    }
+  };
+}
+
+// ============ 企业微信 Markdown 消息 ============
+function buildWeComPayload(markdown) {
+  return {
+    msgtype: 'markdown',
+    markdown: {
+      content: markdown.slice(0, 4096)
+    }
+  };
+}
+
+// ============ 钉钉 Markdown 消息 ============
+function buildDingTalkPayload(markdown) {
+  return {
+    msgtype: 'markdown',
+    markdown: {
+      title: '☀️ 每日座舱AI情报速递',
+      text: markdown.slice(0, 15000)
+    }
+  };
+}
+
+// ============ 主流程 ============
+async function main() {
+  const filePath = process.argv[2] || '/tmp/briefing.md';
+  const webhookUrl = process.env.WEBHOOK_URL;
+  const webhookType = process.env.WEBHOOK_TYPE || 'feishu'; // feishu | wecom | dingtalk
+
+  if (!webhookUrl) {
+    console.log('⚠️  WEBHOOK_URL 未设置，跳过推送（情报已保存为 GitHub Artifact）');
+    return;
+  }
+
+  const markdown = fs.readFileSync(filePath, 'utf-8');
+
+  let payload;
+  switch (webhookType) {
+    case 'feishu':   payload = buildFeishuPayload(markdown);  break;
+    case 'wecom':    payload = buildWeComPayload(markdown);   break;
+    case 'dingtalk': payload = buildDingTalkPayload(markdown); break;
+    default: throw new Error('不支持的 WEBHOOK_TYPE: ' + webhookType + '，请使用 feishu / wecom / dingtalk');
+  }
+
+  console.log(`📤 推送到 ${webhookType} ...`);
+  const result = await post(webhookUrl, payload);
+  console.log('📋 推送结果:', JSON.stringify(result));
+}
+
+main().catch(err => {
+  console.error('❌ 推送失败:', err.message);
+  // 推送失败不阻断整体流程
+  process.exit(0);
+});
