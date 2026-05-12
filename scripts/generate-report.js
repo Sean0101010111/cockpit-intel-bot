@@ -1,25 +1,30 @@
 /**
- * DeepSeek LLM 生成座舱情报报告
+ * 火山引擎Ark API 生成座舱情报报告
  */
+
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = process.env.DEEPSEEK_API_KEY;
-const MODEL = 'deepseek-chat';
+// ============ 火山引擎 Ark 配置 ============
+const API_KEY = process.env.ARK_API_KEY;           // 你的 API Key
+const BASE_URL = 'ark.cn-beijing.volces.com';      // 区域地址
+const MODEL = 'ark-code-latest';                   // 你的模型
 
-async function callDeepSeek(prompt) {
+async function callArk(prompt) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       model: MODEL,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'user', content: prompt }
+      ],
       temperature: 0.7
     });
 
     const options = {
-      hostname: 'api.deepseek.com',
+      hostname: BASE_URL,
       port: 443,
-      path: '/chat/completions',
+      path: '/api/coding/v1/chat/completions',      // 注意：coding 接口路径
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -33,9 +38,15 @@ async function callDeepSeek(prompt) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          resolve(json.choices?.[0]?.message?.content || '');
+          // Ark API 返回格式与 OpenAI 兼容
+          const content = json.choices?.[0]?.message?.content;
+          if (content) {
+            resolve(content);
+          } else {
+            reject(new Error('API 返回空: ' + JSON.stringify(json)));
+          }
         } catch (e) {
-          reject(new Error('API 解析失败: ' + data));
+          reject(new Error('解析失败: ' + data));
         }
       });
     });
@@ -58,25 +69,24 @@ async function main() {
   // 读取抓取的新闻
   const newsPath = path.join(__dirname, 'data/index.html');
   let newsData = [];
-  
+
   if (fs.existsSync(newsPath)) {
     try {
       const content = fs.readFileSync(newsPath, 'utf-8');
       newsData = JSON.parse(content);
     } catch (e) {
-      console.log('⚠️ 读取新闻数据失败，使用默认数据');
+      console.log('⚠️ 读取新闻数据失败');
     }
   }
 
   // 构建 prompt
-  const newsList = newsData.length > 0 
+  const newsList = newsData.length > 0
     ? newsData.slice(0, 15).map((n, i) => `${i + 1}. [${n.source}] ${n.title}`).join('\n')
     : '暂无新闻数据';
 
   const prompt = `你是一个专业的智能座舱行业情报专家。
 
 以下是今日最新的AI行业资讯：
-
 ${newsList}
 
 请根据以上资讯，生成一份智能座舱业务情报简报，格式如下：
@@ -106,12 +116,13 @@ ${newsList}
 2. 行动建议要具体可执行
 3. 报告简洁专业，突出业务价值`;
 
-  console.log('🤖 调用 DeepSeek LLM 生成报告...');
-  
-  const report = await callDeepSeek(prompt);
+  console.log('🤖 调用火山引擎 Ark API 生成报告...');
+  console.log(`📌 模型: ${MODEL}`);
+
+  const report = await callArk(prompt);
   console.log('✅ 报告生成完成');
 
-  // 保存到 briefings 目录
+  // 保存报告
   const briefingsDir = path.join(process.cwd(), 'briefings');
   if (!fs.existsSync(briefingsDir)) {
     fs.mkdirSync(briefingsDir, { recursive: true });
@@ -119,12 +130,4 @@ ${newsList}
 
   const today = getTodayDate();
   const reportPath = path.join(briefingsDir, `${today}.md`);
-  fs.writeFileSync(reportPath, report);
-  
-  console.log(`📄 报告已保存: ${reportPath}`);
-}
-
-main().catch(err => {
-  console.error('❌ Fatal:', err.message);
-  process.exit(1);
-});
+  fs.writeFileSync(reportPath
