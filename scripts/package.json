@@ -1,13 +1,10 @@
 {
   "name": "cockpit-intel-bot",
   "version": "1.0.0",
-  "description": "每日智能座舱AI情报自动采集与推送",
   "scripts": {
     "fetch": "node scripts/fetch-news.js",
-    "generate": "node scripts/generate-briefing.js",
+    "generate": "node scripts/generate-report.js",
     "build": "node scripts/build-site.js"
   },
-  "engines": {
-    "node": ">=18"
-  }
+  "dependencies": {}
 }
