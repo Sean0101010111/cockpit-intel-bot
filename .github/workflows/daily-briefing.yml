@@ -1,0 +1,60 @@
+name: ☀️ 每日座舱AI情报速递
+
+on:
+  schedule:
+    # UTC 1:00 = 北京时间 9:00
+    - cron: '0 1 * * *'
+  workflow_dispatch: # 支持手动触发调试
+
+jobs:
+  daily-briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 🟢 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 安装依赖
+        run: npm install
+
+      - name: 📰 抓取昨日AI资讯
+        id: fetch
+        run: |
+          RAW_NEWS=$(node scripts/fetch-news.js)
+          echo "$RAW_NEWS" > /tmp/raw_news.json
+          echo "✅ 资讯抓取完成, 条数: $(cat /tmp/raw_news.json | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))' 2>/dev/null || echo '?')"
+
+      - name: 🧠 LLM生成座舱情报
+        id: generate
+        env:
+          LLM_API_URL: ${{ secrets.LLM_API_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-chat' }}
+        run: |
+          BRIEFING=$(node scripts/generate-briefing.js /tmp/raw_news.json)
+          echo "$BRIEFING" > /tmp/briefing.md
+          cp /tmp/briefing.md ./briefing-$(date +%Y%m%d).md
+          echo "✅ 情报生成完成"
+          # 打印前200字预览
+          head -c 200 /tmp/briefing.md
+
+      - name: 📤 推送到群机器人
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          WEBHOOK_TYPE: ${{ vars.WEBHOOK_TYPE || 'feishu' }}
+        run: |
+          node scripts/push-notify.js /tmp/briefing.md
+          echo "✅ 推送完成"
+
+      - name: 📎 上传情报存档
+        uses: actions/upload-artifact@v4
+        with:
+          name: briefing-${{ github.run_number }}
+          path: ./briefing-*.md
+          retention-days: 90
