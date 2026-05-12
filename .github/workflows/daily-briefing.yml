@@ -4,7 +4,12 @@ on:
   schedule:
     # UTC 1:00 = 北京时间 9:00
     - cron: '0 1 * * *'
-  workflow_dispatch: # 支持手动触发调试
+  workflow_dispatch: # 手动触发
+
+permissions:
+  contents: write        # 允许提交报告到仓库
+  pages: write           # 允许部署 Pages
+  id-token: write        # 允许 Pages 部署认证
 
 jobs:
   daily-briefing:
@@ -24,37 +29,49 @@ jobs:
         run: npm install
 
       - name: 📰 抓取昨日AI资讯
-        id: fetch
         run: |
+          mkdir -p briefings
           RAW_NEWS=$(node scripts/fetch-news.js)
           echo "$RAW_NEWS" > /tmp/raw_news.json
-          echo "✅ 资讯抓取完成, 条数: $(cat /tmp/raw_news.json | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))' 2>/dev/null || echo '?')"
+          NEWS_COUNT=$(cat /tmp/raw_news.json | python3 -c 'import sys,json;d=json.load(sys.stdin);print(len(d))' 2>/dev/null || echo '?')
+          echo "✅ 抓取完成: ${NEWS_COUNT} 条资讯"
 
       - name: 🧠 LLM生成座舱情报
-        id: generate
         env:
           LLM_API_URL: ${{ secrets.LLM_API_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-chat' }}
         run: |
           BRIEFING=$(node scripts/generate-briefing.js /tmp/raw_news.json)
-          echo "$BRIEFING" > /tmp/briefing.md
-          cp /tmp/briefing.md ./briefing-$(date +%Y%m%d).md
-          echo "✅ 情报生成完成"
-          # 打印前200字预览
-          head -c 200 /tmp/briefing.md
+          TODAY=$(date +%Y-%m-%d)
+          echo "$BRIEFING" > "./briefings/${TODAY}.md"
+          echo "✅ 情报生成完成: briefings/${TODAY}.md"
+          echo "📝 预览:"
+          head -c 300 "./briefings/${TODAY}.md"
 
-      - name: 📤 推送到群机器人
-        env:
-          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
-          WEBHOOK_TYPE: ${{ vars.WEBHOOK_TYPE || 'feishu' }}
+      - name: 💾 提交报告到仓库
         run: |
-          node scripts/push-notify.js /tmp/briefing.md
-          echo "✅ 推送完成"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ./briefings/
+          git diff --quiet && git diff --staged --quiet || git commit -m "📝 添加 $(date +%Y-%m-%d) 情报"
+          git push
 
-      - name: 📎 上传情报存档
-        uses: actions/upload-artifact@v4
+      - name: 🏗️ 构建情报网站
+        run: node scripts/build-site.js
+
+      - name: 📤 部署到 GitHub Pages
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: briefing-${{ github.run_number }}
-          path: ./briefing-*.md
-          retention-days: 90
+          path: ./_site
+
+  deploy:
+    needs: daily-briefing
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 🚀 部署
+        id: deployment
+        uses: actions/deploy-pages@v4
