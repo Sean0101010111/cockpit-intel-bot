@@ -17,10 +17,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4              # 旧版本也能跑了
+        uses: actions/checkout@v4
 
-      - name: Setup Pages
+      - name: Configure Pages
         uses: actions/configure-pages@v4
+
+      # ⬇️⬇️⬇️ 加上这一步！⬇️⬇️⬇️
+      - name: Build with Jekyll
+        uses: actions/jekyll-build-pages@v4
+        with:
+          source: ./
+          destination: ./_site
+      # ⬆️⬆️⬆️ 加上这一步！⬆️⬆️⬆️
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
