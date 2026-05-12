@@ -20,7 +20,7 @@ jobs:
       - name: Fetch News
         env:
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
-        run: node scripts/fetch-news.js > scripts/data/index.html
+        run: node scripts/fetch-news.js > data/index.html
 
       - name: Generate Report
         env:
@@ -34,4 +34,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./scripts/_site
+          publish_dir: ./_site
