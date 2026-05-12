@@ -1,5 +1,5 @@
 /**
- * 火山引擎Ark API 生成座舱情报报告
+ * 火山引擎 Ark API 生成座舱情报报告
  */
 
 const https = require('https');
@@ -7,24 +7,22 @@ const fs = require('fs');
 const path = require('path');
 
 // ============ 火山引擎 Ark 配置 ============
-const API_KEY = process.env.ARK_API_KEY;           // 你的 API Key
-const BASE_URL = 'ark.cn-beijing.volces.com';      // 区域地址
-const MODEL = 'ark-code-latest';                   // 你的模型
+const API_KEY = process.env.ARK_API_KEY;
+const BASE_URL = 'ark.cn-beijing.volces.com';
+const MODEL = 'ark-code-latest';
 
 async function callArk(prompt) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       model: MODEL,
-      messages: [
-        { role: 'user', content: prompt }
-      ],
+      messages: [{ role: 'user', content: prompt }],
       temperature: 0.7
     });
 
     const options = {
       hostname: BASE_URL,
       port: 443,
-      path: '/api/coding/v1/chat/completions',      // 注意：coding 接口路径
+      path: '/api/coding/v1/chat/completions',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -38,7 +36,6 @@ async function callArk(prompt) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          // Ark API 返回格式与 OpenAI 兼容
           const content = json.choices?.[0]?.message?.content;
           if (content) {
             resolve(content);
@@ -59,15 +56,13 @@ async function callArk(prompt) {
 
 function getTodayDate() {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 async function main() {
   // 读取抓取的新闻
-  const newsPath = path.join(__dirname, 'data/index.html');
+  const dataDir = path.join(__dirname, '..', 'data');
+  const newsPath = path.join(dataDir, 'index.html');
   let newsData = [];
 
   if (fs.existsSync(newsPath)) {
@@ -79,7 +74,6 @@ async function main() {
     }
   }
 
-  // 构建 prompt
   const newsList = newsData.length > 0
     ? newsData.slice(0, 15).map((n, i) => `${i + 1}. [${n.source}] ${n.title}`).join('\n')
     : '暂无新闻数据';
@@ -117,17 +111,21 @@ ${newsList}
 3. 报告简洁专业，突出业务价值`;
 
   console.log('🤖 调用火山引擎 Ark API 生成报告...');
-  console.log(`📌 模型: ${MODEL}`);
-
   const report = await callArk(prompt);
   console.log('✅ 报告生成完成');
 
-  // 保存报告
-  const briefingsDir = path.join(process.cwd(), 'briefings');
+  const briefingsDir = path.join(__dirname, '..', 'briefings');
   if (!fs.existsSync(briefingsDir)) {
     fs.mkdirSync(briefingsDir, { recursive: true });
   }
 
   const today = getTodayDate();
   const reportPath = path.join(briefingsDir, `${today}.md`);
-  fs.writeFileSync(reportPath
+  fs.writeFileSync(reportPath, report);
+  console.log(`📄 报告已保存: ${reportPath}`);
+}
+
+main().catch(err => {
+  console.error('❌ Fatal:', err.message);
+  process.exit(1);
+});
